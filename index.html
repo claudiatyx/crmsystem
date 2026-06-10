@@ -48,10 +48,21 @@ const RELATIONS = ["Spouse","Parent","Child","Sibling","Grandparent","Grandchild
 const EMPTY_PERSON = {
   id: null, name: "", birthday: "", ageOnly: "", contact: "", howKnow: "", keyPeople: "",
   occupation: "", keyMilestones: "", stage: "lead",
-  followUpTopic: "", followUpDate: "", notes: "",
+  followUpTopic: "", followUpDate: "", lastMeetup: "", notes: "",
   referredById: null, tier: null, familyId: null, inLibrary: true, lastUpdated: null,
   emergencyContacts: [{name:"",relation:"",contact:""},{name:"",relation:"",contact:""},{name:"",relation:"",contact:""}],
+  policySummaryLink: "", policies: [],
 };
+const EMPTY_POLICY = { name: "", purchaseDate: "", category: "" };
+const POLICY_CATEGORIES = ["Insurance", "Accumulation", "Retirement", "Legacy"];
+function POLICY_CAT_COLOR(cat) {
+  return {
+    Insurance:    {bg:"#fef2f2",dot:"#b91c1c",border:"#fecaca"},
+    Accumulation: {bg:"#eff6ff",dot:"#1d4ed8",border:"#bfdbfe"},
+    Retirement:   {bg:"#f0fdf4",dot:"#15803d",border:"#bbf7d0"},
+    Legacy:       {bg:"#fdf4ff",dot:"#7e22ce",border:"#e9d5ff"},
+  }[cat] || {bg:"#f3f4f6",dot:"#6b7280",border:"#e5e7eb"};
+}
 
 // Family members not in the main library (just for tree)
 const EMPTY_FAMILY_MEMBER = {
@@ -191,6 +202,14 @@ function ProfileModal({ person, allPeople, families, onClose, onEdit, onViewProf
             <div style={{fontSize:13,color:"#374151"}}>{person.keyMilestones}</div>
           </div>}
 
+          {person.lastMeetup&&<div style={{background:"#f0f9ff",border:"1px solid #bae6fd",borderRadius:10,padding:"10px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:16}}>🤝</span>
+            <div>
+              <div style={{fontSize:11,fontWeight:700,color:"#0369a1",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:2}}>Last meetup</div>
+              <div style={{fontSize:13,color:"#374151",fontWeight:600}}>{fmt(person.lastMeetup)}</div>
+            </div>
+          </div>}
+
           {(person.followUpTopic||person.followUpDate)&&<div style={{background:"#fffbeb",border:"1px solid #fde68a",borderRadius:10,padding:"12px 14px",marginBottom:14}}>
             <div style={{fontSize:11,fontWeight:700,color:"#92400e",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:6}}>Next follow-up</div>
             {person.followUpDate&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}><span style={{fontSize:13,fontWeight:700,color:"#374151"}}>{fmt(person.followUpDate)}</span><Badge date={person.followUpDate}/></div>}
@@ -260,6 +279,32 @@ function ProfileModal({ person, allPeople, families, onClose, onEdit, onViewProf
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {person.stage==="client"&&(person.policies?.length>0||person.policySummaryLink)&&(
+            <div style={{borderTop:"1px solid #f3f4f6",paddingTop:14,marginBottom:14}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+                <div style={{fontSize:12,fontWeight:700,color:"#9ca3af",textTransform:"uppercase",letterSpacing:"0.05em"}}>🛡 AIA Policies</div>
+                {person.policySummaryLink&&<a href={person.policySummaryLink} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:"#2563eb",fontWeight:600,textDecoration:"none",background:"#eff6ff",border:"1px solid #bfdbfe",borderRadius:7,padding:"4px 10px"}}>📄 Policy Summary →</a>}
+              </div>
+              {person.policies?.length>0&&<div style={{display:"flex",flexDirection:"column",gap:6}}>
+                {person.policies.map((pol,i)=>{
+                  const cc = pol.category?POLICY_CAT_COLOR(pol.category):null;
+                  return (
+                    <div key={i} style={{display:"flex",alignItems:"center",gap:10,background:"#f8fafc",border:"1px solid #e5e7eb",borderRadius:10,padding:"9px 14px"}}>
+                      <span style={{fontSize:14}}>📋</span>
+                      <div style={{flex:1}}>
+                        <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:2}}>
+                          <span style={{fontWeight:600,fontSize:13,color:"#111827"}}>{pol.name}</span>
+                          {pol.category&&cc&&<span style={{background:cc.bg,color:cc.dot,border:`1px solid ${cc.border}`,borderRadius:20,padding:"1px 8px",fontSize:11,fontWeight:700}}>{pol.category}</span>}
+                        </div>
+                        {pol.purchaseDate&&<div style={{fontSize:12,color:"#9ca3af"}}>Inception: {fmt(pol.purchaseDate)}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>}
             </div>
           )}
 
@@ -405,6 +450,11 @@ function PersonForm({ initial, allPeople, families, onSave, onDelete, onClose })
 
           <div style={{gridColumn:"1/-1"}}><label style={lbl}>Topic of follow-up</label><input style={inp} value={f.followUpTopic} onChange={e=>set("followUpTopic",e.target.value)} placeholder="e.g. Proposal review, annual check-in"/></div>
           <div><label style={lbl}>Follow-up date</label><input style={inp} type="date" value={f.followUpDate} onChange={e=>set("followUpDate",e.target.value)}/></div>
+          <div>
+            <label style={lbl}>Last meetup date</label>
+            <input style={inp} type="date" value={f.lastMeetup||""} onChange={e=>set("lastMeetup",e.target.value)}/>
+            <div style={{fontSize:11,color:"#9ca3af",marginTop:3}}>Shown on card if no follow-up date set</div>
+          </div>
           <div style={{gridColumn:"1/-1"}}><label style={lbl}>Notes</label><textarea style={{...inp,height:96,resize:"vertical"}} value={f.notes} onChange={e=>set("notes",e.target.value)} placeholder="Anything else to remember about this person..."/></div>
 
           {f.stage==="client"&&<div style={{gridColumn:"1/-1"}}>
@@ -426,6 +476,48 @@ function PersonForm({ initial, allPeople, families, onSave, onDelete, onClose })
                 </div>
               );
             })}
+          </div>}
+
+          {f.stage==="client"&&<div style={{gridColumn:"1/-1"}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12,marginTop:4}}>
+              <label style={{...lbl,marginBottom:0}}>AIA Policies</label>
+              <span style={{fontSize:11,background:"#f0fdf4",color:"#16a34a",border:"1px solid #bbf7d0",borderRadius:20,padding:"2px 8px",fontWeight:600}}>Clients only</span>
+            </div>
+            <div style={{marginBottom:10}}>
+              <label style={{...lbl,textTransform:"none",fontSize:13,fontWeight:600,color:"#374151",letterSpacing:0}}>Policy Summary Link (Google Sheet)</label>
+              <input style={inp} value={f.policySummaryLink||""} onChange={e=>set("policySummaryLink",e.target.value)} placeholder="https://docs.google.com/spreadsheets/..."/>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              {(f.policies||[]).map((pol,i)=>{
+                const pols = f.policies||[];
+                const setPol = (k,v) => set("policies", pols.map((x,j)=>j===i?{...x,[k]:v}:x));
+                return (
+                  <div key={i} style={{background:"#f8fafc",border:"1px solid #e5e7eb",borderRadius:10,padding:"10px 12px",marginBottom:4}}>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr auto",gap:8,alignItems:"center",marginBottom:6}}>
+                      <input style={inp} value={pol.name} onChange={e=>setPol("name",e.target.value)} placeholder="Policy name (e.g. AIA Pro Achiever)"/>
+                      <div>
+                        <div style={{fontSize:11,fontWeight:700,color:"#6b7280",textTransform:"uppercase",letterSpacing:"0.05em",marginBottom:4}}>Inception Date</div>
+                        <input style={inp} type="date" value={pol.purchaseDate||""} onChange={e=>setPol("purchaseDate",e.target.value)}/>
+                      </div>
+                      <button onClick={()=>set("policies",pols.filter((_,j)=>j!==i))} style={{background:"#fef2f2",border:"1px solid #fecaca",borderRadius:6,color:"#dc2626",width:28,height:28,cursor:"pointer",fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>×</button>
+                    </div>
+                    <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                      {POLICY_CATEGORIES.map(cat=>(
+                        <button key={cat} type="button" onClick={()=>setPol("category",pol.category===cat?"":cat)}
+                          style={{background:pol.category===cat?POLICY_CAT_COLOR(cat).bg:"#fff",color:pol.category===cat?POLICY_CAT_COLOR(cat).dot:"#9ca3af",border:`1px solid ${pol.category===cat?POLICY_CAT_COLOR(cat).border:"#e5e7eb"}`,borderRadius:20,padding:"3px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              <button onClick={()=>set("policies",[...(f.policies||[]),{...EMPTY_POLICY}])} style={{background:"transparent",border:"1.5px dashed #d1d5db",borderRadius:10,padding:"8px",fontSize:13,color:"#9ca3af",cursor:"pointer",fontWeight:600,transition:"all 0.15s"}}
+                onMouseEnter={e=>{e.currentTarget.style.borderColor="#4ade80";e.currentTarget.style.color="#16a34a"}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="#d1d5db";e.currentTarget.style.color="#9ca3af"}}>
+                + Add Policy
+              </button>
+            </div>
           </div>}
         </div>
 
@@ -736,22 +828,213 @@ function PipelineCard({ p, allPeople, onOpenProfile }) {
           {referrer&&<span style={{fontSize:12,color:"#7c3aed",background:"#f5f3ff",border:"1px solid #ddd6fe",borderRadius:6,padding:"2px 8px",fontWeight:500}}>🔗 via {referrer.name}</span>}
           {refCount>0&&<span style={{fontSize:12,color:"#059669",background:"#ecfdf5",border:"1px solid #a7f3d0",borderRadius:6,padding:"2px 8px",fontWeight:600}}>{refCount} referral{refCount>1?"s":""}</span>}
         </div>
-        {p.lastUpdated&&<div style={{marginTop:8,fontSize:11,color:"#c4c9d4"}}>Updated {new Date(p.lastUpdated).toLocaleDateString("en-SG",{day:"numeric",month:"short",year:"numeric"})}</div>}
+        {!p.followUpDate&&p.lastMeetup&&<div style={{marginTop:6,display:"flex",alignItems:"center",gap:5}}>
+          <span style={{fontSize:11}}>🤝</span>
+          <span style={{fontSize:11,color:"#9ca3af"}}>Last met: {fmt(p.lastMeetup)}</span>
+        </div>}
+        {p.lastUpdated&&<div style={{marginTop:6,fontSize:11,color:"#c4c9d4"}}>Updated {new Date(p.lastUpdated).toLocaleDateString("en-SG",{day:"numeric",month:"short",year:"numeric"})}</div>}
       </div>
     </div>
   );
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────────
+
+// ── Supabase config ───────────────────────────────────────────────────────────
+const SUPA_URL = "https://hemylvxelymzpfrpsivg.supabase.co";
+const SUPA_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhlbXlsdnhlbHltenBmcnBzaXZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDc4NDksImV4cCI6MjA5NjY4Mzg0OX0.wVT8PG8L9BPHyUrSZfOG7WiKNHb0_S5LhmKQzONPFwY";
+const SB_HEADERS = { "Content-Type": "application/json", "apikey": SUPA_KEY, "Authorization": `Bearer ${SUPA_KEY}` };
+
+// Map camelCase ↔ snake_case between app and database
+function toRow(p) {
+  return {
+    id: p.id,
+    name: p.name,
+    birthday: p.birthday||null,
+    age_only: p.ageOnly||null,
+    contact: p.contact||null,
+    how_know: p.howKnow||null,
+    key_people: p.keyPeople||null,
+    occupation: p.occupation||null,
+    key_milestones: p.keyMilestones||null,
+    stage: p.stage||"lead",
+    follow_up_topic: p.followUpTopic||null,
+    follow_up_date: p.followUpDate||null,
+    notes: p.notes||null,
+    referred_by_id: p.referredById||null,
+    tier: p.tier||null,
+    family_id: p.familyId||null,
+    in_library: p.inLibrary!==false,
+    last_updated: p.lastUpdated||null,
+    emergency_contacts: p.emergencyContacts||[],
+    last_meetup: p.lastMeetup||null,
+    policy_summary_link: p.policySummaryLink||null,
+    policies: p.policies||[],
+  };
+}
+function fromRow(r) {
+  return {
+    id: r.id,
+    name: r.name,
+    birthday: r.birthday||"",
+    ageOnly: r.age_only||"",
+    contact: r.contact||"",
+    howKnow: r.how_know||"",
+    keyPeople: r.key_people||"",
+    occupation: r.occupation||"",
+    keyMilestones: r.key_milestones||"",
+    stage: r.stage||"lead",
+    followUpTopic: r.follow_up_topic||"",
+    followUpDate: r.follow_up_date||"",
+    notes: r.notes||"",
+    referredById: r.referred_by_id||null,
+    tier: r.tier||null,
+    familyId: r.family_id||null,
+    inLibrary: r.in_library!==false,
+    lastUpdated: r.last_updated||null,
+    emergencyContacts: r.emergency_contacts||[{name:"",relation:"",contact:""},{name:"",relation:"",contact:""},{name:"",relation:"",contact:""}],
+    lastMeetup: r.last_meetup||"",
+    policySummaryLink: r.policy_summary_link||"",
+    policies: r.policies||[],
+  };
+}
+function famToRow(f) { return { id: f.id, name: f.name, notes: f.notes||null }; }
+function famFromRow(r) { return { id: r.id, name: r.name, notes: r.notes||"" }; }
+
+async function sbFetch(path, opts={}) {
+  const res = await fetch(`${SUPA_URL}/rest/v1/${path}`, { headers: SB_HEADERS, ...opts });
+  if (!res.ok) { const e = await res.text(); throw new Error(e); }
+  return res.status===204 ? null : res.json();
+}
+
 function App() {
-  const [people, setPeople]     = useState(SAMPLE_PEOPLE);
-  const [families, setFamilies] = useState(SAMPLE_FAMILIES);
-  const [tab, setTab]           = useState("pipeline"); // "pipeline" | "families"
-  const [modal, setModal]       = useState(null);       // null | "addPerson" | "addFamily" | person obj
+  const [people,   setPeople]   = useState([]);
+  const [families, setFamilies] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [syncMsg,  setSyncMsg]  = useState("");
+
+  // ── Load all data from Supabase on mount ──────────────────────────────────
+  useEffect(() => {
+    async function loadAll() {
+      try {
+        const [pRows, fRows] = await Promise.all([
+          sbFetch("people?select=*&order=created_at.asc"),
+          sbFetch("families?select=*&order=created_at.asc"),
+        ]);
+        setPeople((pRows||[]).map(fromRow));
+        setFamilies((fRows||[]).map(famFromRow));
+      } catch(e) {
+        console.error("Load error:", e);
+        setSyncMsg("⚠️ Could not connect to database. Check your internet connection.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadAll();
+  }, []);
+
+  function flash(msg) { setSyncMsg(msg); setTimeout(()=>setSyncMsg(""), 3000); }
+
+  // ── Save / update a person ────────────────────────────────────────────────
+  const savePerson = async (data) => {
+    try {
+      const row = toRow(data);
+      const exists = people.find(p=>p.id===data.id);
+      if (exists) {
+        await sbFetch(`people?id=eq.${data.id}`, { method:"PATCH", body: JSON.stringify(row) });
+      } else {
+        await sbFetch("people", { method:"POST", body: JSON.stringify(row) });
+      }
+      setPeople(prev => exists ? prev.map(p=>p.id===data.id?data:p) : [...prev, data]);
+      setModal(null);
+      if (profile&&profile.id===data.id) setProfile(data);
+      flash("✅ Saved to cloud");
+    } catch(e) { flash("⚠️ Save failed — check connection"); console.error(e); }
+  };
+
+  // ── Save / update a family ────────────────────────────────────────────────
+  const saveFamily = async (data) => {
+    const { memberIds, ...familyData } = data;
+    try {
+      const exists = families.find(f=>f.id===familyData.id);
+      if (exists) {
+        await sbFetch(`families?id=eq.${familyData.id}`, { method:"PATCH", body: JSON.stringify(famToRow(familyData)) });
+      } else {
+        await sbFetch("families", { method:"POST", body: JSON.stringify(famToRow(familyData)) });
+      }
+      setFamilies(prev => exists ? prev.map(f=>f.id===familyData.id?familyData:f) : [...prev, familyData]);
+
+      // Update people's familyId
+      if (memberIds) {
+        const toAdd = memberIds.filter(id => {
+          const p = people.find(x=>x.id===id);
+          return p && p.familyId !== familyData.id;
+        });
+        const toRemove = people.filter(p=>p.familyId===familyData.id&&!memberIds.includes(p.id)).map(p=>p.id);
+
+        for (const id of toAdd) {
+          await sbFetch(`people?id=eq.${id}`, { method:"PATCH", body: JSON.stringify({family_id: familyData.id}) });
+        }
+        for (const id of toRemove) {
+          await sbFetch(`people?id=eq.${id}`, { method:"PATCH", body: JSON.stringify({family_id: null}) });
+        }
+        setPeople(prev => prev.map(p => {
+          if (memberIds.includes(p.id)) return {...p, familyId: familyData.id};
+          if (p.familyId===familyData.id && !memberIds.includes(p.id)) return {...p, familyId: null};
+          return p;
+        }));
+      }
+      setModal(null);
+      flash("✅ Family saved to cloud");
+    } catch(e) { flash("⚠️ Save failed — check connection"); console.error(e); }
+  };
+
+  // ── Add family member (quick add) ─────────────────────────────────────────
+  const addFamilyMember = async (memberData) => {
+    try {
+      const exists = people.find(p=>p.id===memberData.id);
+      if (exists) {
+        await sbFetch(`people?id=eq.${memberData.id}`, { method:"PATCH", body: JSON.stringify({family_id: memberData.familyId}) });
+        setPeople(prev=>prev.map(p=>p.id===memberData.id?{...p,familyId:memberData.familyId}:p));
+      } else {
+        await sbFetch("people", { method:"POST", body: JSON.stringify(toRow(memberData)) });
+        setPeople(prev=>[...prev, memberData]);
+      }
+      setAddMemberFamilyId(null);
+      flash("✅ Member added");
+    } catch(e) { flash("⚠️ Save failed"); console.error(e); }
+  };
+
+  // ── Delete family ─────────────────────────────────────────────────────────
+  const deleteFamily = async (id) => {
+    if (!confirm("Delete this family group? Members will be unlinked but not deleted.")) return;
+    try {
+      await sbFetch(`families?id=eq.${id}`, { method:"DELETE" });
+      await sbFetch(`people?family_id=eq.${id}`, { method:"PATCH", body: JSON.stringify({family_id: null}) });
+      setFamilies(prev=>prev.filter(f=>f.id!==id));
+      setPeople(prev=>prev.map(p=>p.familyId===id?{...p,familyId:null}:p));
+      flash("🗑 Family deleted");
+    } catch(e) { flash("⚠️ Delete failed"); console.error(e); }
+  };
+
+  // ── Delete person ─────────────────────────────────────────────────────────
+  const deletePerson = async (id) => {
+    if (!confirm("Remove this person?")) return;
+    try {
+      await sbFetch(`people?id=eq.${id}`, { method:"DELETE" });
+      setPeople(prev=>prev.filter(p=>p.id!==id));
+      setProfile(null);
+      flash("🗑 Person removed");
+    } catch(e) { flash("⚠️ Delete failed"); console.error(e); }
+  };
+
+  const [tab, setTab]           = useState("pipeline");
+  const [modal, setModal]       = useState(null);
   const [profile, setProfile]   = useState(null);
   const [addMemberFamilyId, setAddMemberFamilyId] = useState(null);
   const [filterStage, setFilterStage] = useState("all");
   const [filterTier,  setFilterTier]  = useState("all");
+  const [filterLastPurchase, setFilterLastPurchase] = useState("all");
   const [sort, setSort]   = useState("date");
   const [search, setSearch] = useState("");
   const [view, setView]   = useState("grid");
@@ -762,6 +1045,17 @@ function App() {
     let l = [...libraryPeople];
     if (filterStage!=="all") l=l.filter(p=>p.stage===filterStage);
     if (filterTier!=="all") l=l.filter(p=>p.stage==="client"&&p.tier===filterTier);
+    if (filterLastPurchase!=="all") {
+      const now = new Date(); now.setHours(0,0,0,0);
+      const days = filterLastPurchase==="30"?30:filterLastPurchase==="90"?90:filterLastPurchase==="180"?180:365;
+      l=l.filter(p=>{
+        if (p.stage!=="client"||!p.policies?.length) return false;
+        const latest = p.policies.map(x=>x.purchaseDate).filter(Boolean).sort().pop();
+        if (!latest) return false;
+        const diff = (now-new Date(latest+"T00:00:00"))/86400000;
+        return diff<=days;
+      });
+    }
     if (search.trim()) { const q=search.toLowerCase(); l=l.filter(p=>[p.name,p.occupation,p.followUpTopic,p.howKnow].join(" ").toLowerCase().includes(q)); }
     l.sort((a,b)=>{
       if(sort==="date"){if(!a.followUpDate)return 1;if(!b.followUpDate)return -1;return a.followUpDate.localeCompare(b.followUpDate);}
@@ -777,53 +1071,22 @@ function App() {
   const tierCounts  = TIERS.map(t=>({...t,n:libraryPeople.filter(p=>p.stage==="client"&&p.tier===t.id).length}));
   const urgent = libraryPeople.filter(p=>{const d=daysTo(p.followUpDate);return d!==null&&d<=1;});
 
-  const savePerson = (data) => {
-    setPeople(prev=>{
-      const exists=prev.find(p=>p.id===data.id);
-      return exists?prev.map(p=>p.id===data.id?data:p):[...prev,data];
-    });
-    setModal(null);
-    if(profile&&profile.id===data.id)setProfile(data);
-  };
-  const saveFamily = (data) => {
-    const { memberIds, ...familyData } = data;
-    setFamilies(prev => {
-      const exists = prev.find(f=>f.id===familyData.id);
-      return exists ? prev.map(f=>f.id===familyData.id?familyData:f) : [...prev,familyData];
-    });
-    // Update people's familyId: add selected, remove de-selected from this family
-    if (memberIds) {
-      setPeople(prev => prev.map(p => {
-        if (memberIds.includes(p.id)) return {...p, familyId: familyData.id};
-        if (p.familyId === familyData.id && !memberIds.includes(p.id)) return {...p, familyId: null};
-        return p;
-      }));
-    }
-    setModal(null);
-  };
-  const addFamilyMember = (memberData) => {
-    setPeople(prev=>{
-      const exists=prev.find(p=>p.id===memberData.id);
-      return exists?prev.map(p=>p.id===memberData.id?{...p,familyId:memberData.familyId}:p):[...prev,memberData];
-    });
-    setAddMemberFamilyId(null);
-  };
-  const deleteFamily = (id) => {
-    if(!confirm("Delete this family group? Members will be unlinked but not deleted."))return;
-    setFamilies(prev=>prev.filter(f=>f.id!==id));
-    setPeople(prev=>prev.map(p=>p.familyId===id?{...p,familyId:null}:p));
-  };
-  const deletePerson = (id) => {
-    if(!confirm("Remove this person?"))return;
-    setPeople(prev=>prev.filter(p=>p.id!==id));
-    setProfile(null);
-  };
-
   const headerBtnStyle = {background:"transparent",border:"none",padding:"10px 18px",fontSize:14,fontWeight:600,cursor:"pointer",borderBottom:"2px solid transparent",whiteSpace:"nowrap",transition:"color 0.15s"};
+
+  if (loading) return (
+    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",background:"#f8fafc",gap:16}}>
+      <div style={{fontSize:36}}>☁️</div>
+      <div style={{fontFamily:"'Playfair Display',serif",fontSize:22,fontWeight:700,color:"#111827"}}>Loading your CMS...</div>
+      <div style={{fontSize:14,color:"#9ca3af"}}>Connecting to Supabase</div>
+    </div>
+  );
 
   return (
     <div style={{minHeight:"100vh",background:"#f8fafc",fontFamily:"'DM Sans',sans-serif",color:"#111827"}}>
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet"/>
+
+      {/* sync toast */}
+      {syncMsg&&<div style={{position:"fixed",bottom:24,right:24,background:"#111827",color:"#fff",borderRadius:12,padding:"12px 20px",fontSize:13,fontWeight:600,zIndex:9999,boxShadow:"0 4px 20px rgba(0,0,0,0.2)"}}>{syncMsg}</div>}
 
       {/* ── Top Nav ── */}
       <div style={{background:"#fff",borderBottom:"1px solid #e5e7eb",padding:"0 32px"}}>
@@ -874,10 +1137,14 @@ function App() {
                 </button>
               ))}
             </div>
-            {filterStage==="client"&&<div style={{display:"flex",gap:6,padding:"8px 0 12px",borderTop:"1px solid #f3f4f6"}}>
+            {filterStage==="client"&&<div style={{display:"flex",gap:6,padding:"8px 0 12px",borderTop:"1px solid #f3f4f6",flexWrap:"wrap"}}>
               <span style={{fontSize:12,color:"#9ca3af",alignSelf:"center",marginRight:4}}>Tier:</span>
               <button onClick={()=>setFilterTier("all")} style={{background:filterTier==="all"?"#111827":"#f3f4f6",color:filterTier==="all"?"#fff":"#6b7280",border:"none",borderRadius:20,padding:"4px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>All</button>
               {tierCounts.map(t=><button key={t.id} onClick={()=>setFilterTier(filterTier===t.id?"all":t.id)} style={{background:filterTier===t.id?t.dot:"#f3f4f6",color:filterTier===t.id?"#fff":t.dot,border:"none",borderRadius:20,padding:"4px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{t.icon} {t.label} ({t.n})</button>)}
+              <span style={{fontSize:12,color:"#9ca3af",alignSelf:"center",marginLeft:8,marginRight:4}}>Last purchase:</span>
+              {[["all","All"],["30","30d"],["90","90d"],["180","6mo"],["365","1yr"]].map(([v,l])=>(
+                <button key={v} onClick={()=>setFilterLastPurchase(v)} style={{background:filterLastPurchase===v?"#16a34a":"#f3f4f6",color:filterLastPurchase===v?"#fff":"#6b7280",border:"none",borderRadius:20,padding:"4px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{l}</button>
+              ))}
             </div>}
           </div>
         </div>
