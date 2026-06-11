@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CMS — Claudiatyx</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.3/babel.min.js"></script>
@@ -842,9 +843,8 @@ function PipelineCard({ p, allPeople, onOpenProfile }) {
 
 // ── Supabase config ───────────────────────────────────────────────────────────
 const SUPA_URL = "https://hemylvxelymzpfrpsivg.supabase.co";
-const SUPA_KEY = "sb_publishable_tKgYaBpRSw_VFaRqnGjkwA_vn2RSmLI";
 const SUPA_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhlbXlsdnhlbHltenBmcnBzaXZnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODExMDc4NDksImV4cCI6MjA5NjY4Mzg0OX0.wVT8PG8L9BPHyUrSZfOG7WiKNHb0_S5LhmKQzONPFwY";
-const SB_HEADERS = { "Content-Type": "application/json", "apikey": SUPA_ANON, "Authorization": `Bearer ${SUPA_ANON}` };
+const supabase = window.supabase.createClient(SUPA_URL, SUPA_ANON);
 
 // Map camelCase ↔ snake_case between app and database
 function toRow(p) {
@@ -902,11 +902,7 @@ function fromRow(r) {
 function famToRow(f) { return { id: f.id, name: f.name, notes: f.notes||null }; }
 function famFromRow(r) { return { id: r.id, name: r.name, notes: r.notes||"" }; }
 
-async function sbFetch(path, opts={}) {
-  const res = await fetch(`${SUPA_URL}/rest/v1/${path}`, { headers: SB_HEADERS, ...opts });
-  if (!res.ok) { const e = await res.text(); throw new Error(e); }
-  return res.status===204 ? null : res.json();
-}
+// supabase client is used directly — no manual fetch needed
 
 function App() {
   const [people,   setPeople]   = useState([]);
@@ -918,12 +914,14 @@ function App() {
   useEffect(() => {
     async function loadAll() {
       try {
-        const [pRows, fRows] = await Promise.all([
-          sbFetch("people?select=*&order=created_at.asc"),
-          sbFetch("families?select=*&order=created_at.asc"),
+        const [pRes, fRes] = await Promise.all([
+          supabase.from("people").select("*").order("created_at", {ascending:true}),
+          supabase.from("families").select("*").order("created_at", {ascending:true}),
         ]);
-        setPeople((pRows||[]).map(fromRow));
-        setFamilies((fRows||[]).map(famFromRow));
+        if (pRes.error) throw pRes.error;
+        if (fRes.error) throw fRes.error;
+        setPeople((pRes.data||[]).map(fromRow));
+        setFamilies((fRes.data||[]).map(famFromRow));
       } catch(e) {
         console.error("Load error:", e);
         setSyncMsg("⚠️ Could not connect to database. Check your internet connection.");
@@ -941,11 +939,10 @@ function App() {
     try {
       const row = toRow(data);
       const exists = people.find(p=>p.id===data.id);
-      if (exists) {
-        await sbFetch(`people?id=eq.${data.id}`, { method:"PATCH", body: JSON.stringify(row) });
-      } else {
-        await sbFetch("people", { method:"POST", body: JSON.stringify(row) });
-      }
+      const res = exists
+        ? await supabase.from("people").update(row).eq("id", data.id)
+        : await supabase.from("people").insert(row);
+      if (res.error) throw res.error;
       setPeople(prev => exists ? prev.map(p=>p.id===data.id?data:p) : [...prev, data]);
       setModal(null);
       if (profile&&profile.id===data.id) setProfile(data);
@@ -958,11 +955,10 @@ function App() {
     const { memberIds, ...familyData } = data;
     try {
       const exists = families.find(f=>f.id===familyData.id);
-      if (exists) {
-        await sbFetch(`families?id=eq.${familyData.id}`, { method:"PATCH", body: JSON.stringify(famToRow(familyData)) });
-      } else {
-        await sbFetch("families", { method:"POST", body: JSON.stringify(famToRow(familyData)) });
-      }
+      const fRes = exists
+        ? await supabase.from("families").update(famToRow(familyData)).eq("id", familyData.id)
+        : await supabase.from("families").insert(famToRow(familyData));
+      if (fRes.error) throw fRes.error;
       setFamilies(prev => exists ? prev.map(f=>f.id===familyData.id?familyData:f) : [...prev, familyData]);
 
       // Update people's familyId
@@ -974,10 +970,10 @@ function App() {
         const toRemove = people.filter(p=>p.familyId===familyData.id&&!memberIds.includes(p.id)).map(p=>p.id);
 
         for (const id of toAdd) {
-          await sbFetch(`people?id=eq.${id}`, { method:"PATCH", body: JSON.stringify({family_id: familyData.id}) });
+          await supabase.from("people").update({family_id: familyData.id}).eq("id", id);
         }
         for (const id of toRemove) {
-          await sbFetch(`people?id=eq.${id}`, { method:"PATCH", body: JSON.stringify({family_id: null}) });
+          await supabase.from("people").update({family_id: null}).eq("id", id);
         }
         setPeople(prev => prev.map(p => {
           if (memberIds.includes(p.id)) return {...p, familyId: familyData.id};
@@ -995,10 +991,10 @@ function App() {
     try {
       const exists = people.find(p=>p.id===memberData.id);
       if (exists) {
-        await sbFetch(`people?id=eq.${memberData.id}`, { method:"PATCH", body: JSON.stringify({family_id: memberData.familyId}) });
+        await supabase.from("people").update({family_id: memberData.familyId}).eq("id", memberData.id);
         setPeople(prev=>prev.map(p=>p.id===memberData.id?{...p,familyId:memberData.familyId}:p));
       } else {
-        await sbFetch("people", { method:"POST", body: JSON.stringify(toRow(memberData)) });
+        await supabase.from("people").insert(toRow(memberData));
         setPeople(prev=>[...prev, memberData]);
       }
       setAddMemberFamilyId(null);
@@ -1010,8 +1006,8 @@ function App() {
   const deleteFamily = async (id) => {
     if (!confirm("Delete this family group? Members will be unlinked but not deleted.")) return;
     try {
-      await sbFetch(`families?id=eq.${id}`, { method:"DELETE" });
-      await sbFetch(`people?family_id=eq.${id}`, { method:"PATCH", body: JSON.stringify({family_id: null}) });
+      await supabase.from("families").delete().eq("id", id);
+      await supabase.from("people").update({family_id: null}).eq("family_id", id);
       setFamilies(prev=>prev.filter(f=>f.id!==id));
       setPeople(prev=>prev.map(p=>p.familyId===id?{...p,familyId:null}:p));
       flash("🗑 Family deleted");
@@ -1022,7 +1018,7 @@ function App() {
   const deletePerson = async (id) => {
     if (!confirm("Remove this person?")) return;
     try {
-      await sbFetch(`people?id=eq.${id}`, { method:"DELETE" });
+      await supabase.from("people").delete().eq("id", id);
       setPeople(prev=>prev.filter(p=>p.id!==id));
       setProfile(null);
       flash("🗑 Person removed");
