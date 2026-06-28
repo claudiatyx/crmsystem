@@ -1041,7 +1041,7 @@ function ImportModal({ onImport, onClose }) {
         name: nameIdx >= 0 ? r[nameIdx].toString().trim() : "",
         birthday,
         ageOnly: (!birthday && ageIdx >= 0) ? (r[ageIdx]?.toString() || "") : "",
-        contact: contact ? "+65 " + contact.replace(/^\+?65\s*/, "") : "",
+        contact: contact ? "+65 " + contact.replace(/^[+]?65[ ]*/, "") : "",
         howKnow: "",
         keyPeople: addressIdx >= 0 ? (r[addressIdx]?.toString().trim() || "") : "",
         occupation: "",
